@@ -25,7 +25,7 @@ public class AlgebricSum extends SNorm {
     public double[] calculateError(double error, double μ[]) {
         double E[] = new double[nInput];
         for (int i = 0; i < nInput; i++) {
-            E[i] = 1.0;
+            E[i] = error;
         }
         return E;
     }

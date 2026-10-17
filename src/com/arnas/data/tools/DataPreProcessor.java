@@ -161,6 +161,9 @@ public class DataPreProcessor {
     }
     
     private void removeRow() {
+        if (removedRow.isEmpty()) {
+            return;
+        }
         double[][] newD = new double[D.length - removedRow.size()][D[0].length];
         int j = 0;
         for (int i = 0; i < D.length; i++) {
@@ -169,6 +172,7 @@ public class DataPreProcessor {
                 j++;
             }
         }
+        D = newD;
     }
     
     private void removeColumn() {
@@ -274,8 +278,8 @@ public class DataPreProcessor {
             mean[i] = mean(linearIndex.get(i));
             stDev[i] = stDev(linearIndex.get(i), mean[i]);
             standarization(linearIndex.get(i), mean[i], stDev[i]);
-            removeOutLier(i, mean(i), stDev[i]);
-            //maxMinScaling(i);
+            removeOutLier(linearIndex.get(i), 0.0, 1.0);
+            //maxMinScaling(linearIndex.get(i));
         }
     }
     
@@ -306,7 +310,7 @@ public class DataPreProcessor {
         double min = Double.MAX_VALUE;
         for (double[] d : D) {
             if (d[i] > max) max = d[i];
-            if (d[i] > min) min = d[i];
+            if (d[i] < min) min = d[i];
         }
         for (int j = 0; j < D.length; j++) {
             D[j][i] = (D[j][i] - min) / (max - min);
@@ -315,12 +319,8 @@ public class DataPreProcessor {
     
     private void removeOutLier(int i, double mean, double stDev) {
         for (int j = 0; j < D.length; j++) {
-            if (!removedRow.contains(j)) {
-                if ((Math.abs(D[j][i] - mean)) > (2 * stDev)) {
-                    removedRow.add(j);
-                } else {
-                    removedRow.add(j);
-                }
+            if (!removedRow.contains(j) && Math.abs(D[j][i] - mean) > (2 * stDev)) {
+                removedRow.add(j);
             }
         }
     }

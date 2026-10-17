@@ -6,8 +6,9 @@ import com.arnas.manfis.data.AnfisInput;
 import com.arnas.manfis.network.rule.consequent.Consequent;
 import com.arnas.manfis.network.rule.membershipFunction.MembershipFunction;
 import com.arnas.manfis.network.rule.sNorm.AlgebricSum;
+import com.arnas.manfis.network.rule.tNorm.AlgebricProduct;
 import com.arnas.manfis.network.rule.tNorm.BasicTNorm;
-//import com.arnas.manfis.network.rule.tNorm.EinsteinProduct;
+import com.arnas.manfis.network.rule.tNorm.TNorm;
 
 /**
  *
@@ -19,6 +20,12 @@ public class Rule {
     public static final String GAUSSIAN_MF = "GAUSSIAN_MF";
     /** MFmethod parameter for Bell MF */
     public static final String BELL_MF = "BELL_MF";
+    /** Layer-2 algebraic product (default ANFIS T-norm) */
+    public static final String PRODUCT_NORM = "PRODUCT";
+    /** Layer-2 minimum T-norm */
+    public static final String MIN_NORM = "MIN";
+    /** Layer-2 sum (not a T-norm; kept as an explicit option) */
+    public static final String SUM_NORM = "SUM";
     
     private final int nInput;
     private final int nOutput;
@@ -32,11 +39,15 @@ public class Rule {
     
     private double y[];
     
-    private final BasicTNorm basicTNorm;
-    //private final EinsteinProduct einsteinProduct;
-    private final AlgebricSum algebricSum;
+    private final TNorm tNorm;
+    private final AlgebricSum sumNorm;
+    private final boolean useSum;
     
     public Rule(int nInput, int nOutput, String MFmethod) {
+        this(nInput, nOutput, MFmethod, PRODUCT_NORM);
+    }
+
+    public Rule(int nInput, int nOutput, String MFmethod, String normType) {
         this.nInput = nInput;
         this.nOutput = nOutput;
         
@@ -46,6 +57,7 @@ public class Rule {
                 for (int i = 0; i < nInput; i++) {
                     mf[i] = new GaussianMF();
                 }
+                break;
             case BELL_MF :
             default :
                 mf = new BellMF[nInput];
@@ -53,12 +65,15 @@ public class Rule {
                     mf[i] = new BellMF();
                 }
                 break;
-                
         }
-        
-        basicTNorm = new BasicTNorm(nInput);
-        //einsteinProduct = new EinsteinProduct(nInput);
-        algebricSum = new AlgebricSum(nInput);
+
+        useSum = SUM_NORM.equals(normType);
+        sumNorm = new AlgebricSum(nInput);
+        if (MIN_NORM.equals(normType)) {
+            tNorm = new BasicTNorm(nInput);
+        } else {
+            tNorm = new AlgebricProduct(nInput);
+        }
         
         Cons = new Consequent[nOutput];
         for (int i = 0; i < nOutput; i++) {
@@ -89,15 +104,12 @@ public class Rule {
         for (int i = 0; i < nInput; i++) {
             μ[i] = mf[i].μ();
         }
-        //w = basicTNorm.computeNorm(μ);
-        w = algebricSum.computeNorm(μ);
-        //System.out.println(w);
-        //w = einsteinProduct.computeNorm(μ);
+        w = useSum ? sumNorm.computeNorm(μ) : tNorm.computeNorm(μ);
     }
     
     public void executeLayer3(double sumw) {
         //System.out.println("Layer-3");
-        w̅ = w / sumw;
+        w̅ = sumw == 0 ? 0 : w / sumw;
         //System.out.println(w̅);
     }
     
@@ -124,9 +136,7 @@ public class Rule {
         for (int i = 0; i < nInput; i++) {
             μ[i] = mf[i].μ();
         }
-        //return basicTNorm.calculateError(E2, μ);
-        return algebricSum.calculateError(E2, μ);
-        //return einsteinProduct.calculateError(E2, μ);
+        return useSum ? sumNorm.calculateError(E2, μ) : tNorm.calculateError(E2, μ);
     }
     
     public void correctPremisError(double E1[], AnfisInput data, double η, double m) {

@@ -34,6 +34,4 @@ mvn -q exec:java -Dexec.args="gui"
 - `com.arnas.gui` — NetBeans Swing UI
 - `com.arnas.manfis.main.AnfisCli` — CLI
 
-## Known limitations (later phases)
-
-Gaussian MF falls through to Bell; layer 2 uses a sum instead of a T-norm; preprocessor outlier/row-filter bugs; confusion-matrix TN/FP are swapped. Tracked in [#4](https://github.com/arnaslab/ANFIS/issues/4).
+Layer 2 defaults to algebraic product. Membership types: `BELL_MF` (Cauchy / 2-parameter bell) and `GAUSSIAN_MF` (`exp(-½ ((x−c)/σ)²)`). Hybrid LSE-each-epoch is [#5](https://github.com/arnaslab/ANFIS/issues/5).

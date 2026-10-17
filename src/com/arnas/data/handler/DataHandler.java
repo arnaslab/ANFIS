@@ -38,7 +38,6 @@ public class DataHandler {
             throws FileNotFoundException, IOException, Exception {
         /* Load Data */
         DataLoader loader = new DataLoader();
-        loader.setUseAd(false);
         ArrayList<String[]> dataTemp = loader.loadFileToWord(dataFile, ",");
         String[] targetTemp = loader.splitLastWord(dataTemp);
         double[][] data = loader.convertWordToDouble(dataTemp);
