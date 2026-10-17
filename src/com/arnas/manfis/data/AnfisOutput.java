@@ -127,27 +127,29 @@ public class AnfisOutput {
     }
     
     public int[] getTrueNegative() {
-        int[] FP = new int[confusionMatrix.length];
-        for (int i = 0; i < FP.length; i++) {
-            for (int j = 0; j < FP.length; j++) {
-                if (i != j) {
-                    FP[i] += confusionMatrix[j][j];
-                }
-            }
-        }
-        return FP;
-    }
-    
-    public int[] getFalsePositive() {
         int[] TN = new int[confusionMatrix.length];
         for (int i = 0; i < TN.length; i++) {
             for (int j = 0; j < TN.length; j++) {
-                if (i != j) {
-                    TN[i] += confusionMatrix[j][i];
+                for (int k = 0; k < TN.length; k++) {
+                    if (j != i && k != i) {
+                        TN[i] += confusionMatrix[j][k];
+                    }
                 }
             }
         }
         return TN;
+    }
+    
+    public int[] getFalsePositive() {
+        int[] FP = new int[confusionMatrix.length];
+        for (int i = 0; i < FP.length; i++) {
+            for (int j = 0; j < FP.length; j++) {
+                if (i != j) {
+                    FP[i] += confusionMatrix[j][i];
+                }
+            }
+        }
+        return FP;
     }
     
     public int[] getFalseNegative() {

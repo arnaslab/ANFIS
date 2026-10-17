@@ -116,7 +116,7 @@ public class AnfisCli {
         System.out.println("  --data-dir DIR     directory with sample files (default: dataset)");
         System.out.println("  --prefix NAME      file prefix (default: xor)");
         System.out.println("  --rules N          number of fuzzy rules (default: 2)");
-        System.out.println("  --mf TYPE          BELL_MF or GAUSSIAN_MF (default: BELL_MF)");
+        System.out.println("  --mf TYPE          BELL_MF (Cauchy) or GAUSSIAN_MF (default: BELL_MF)");
         System.out.println("  --lr RATE          learning rate (default: 0.01)");
         System.out.println("  --momentum M       momentum (default: 0.1)");
         System.out.println("  --epochs N         max epochs (default: 20)");
