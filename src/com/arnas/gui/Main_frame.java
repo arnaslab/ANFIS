@@ -53,24 +53,24 @@ public class Main_frame extends javax.swing.JFrame {
         File dir = new File("dataset");
         if (!dir.exists()) dir.mkdir();
         try {
-            dataFile = new File("dataset\\arrhythmia.v2.dataTr.txt");
+            dataFile = new File("dataset", "xor.dataTr.txt");
             jTextField1.setText(dataFile.getAbsolutePath());
-        } catch (Exception ex) {}
-        try {
-            typeFile = new File("dataset\\arrhythmia.type.txt");
+            } catch (Exception ex) {}
+            try {
+            typeFile = new File("dataset", "xor.type.txt");
             jTextField2.setText(typeFile.getAbsolutePath());
-        } catch (Exception ex) {}
-        try {
-            nameFile = new File("dataset\\arrhythmia.name.txt");
+            } catch (Exception ex) {}
+            try {
+            nameFile = new File("dataset", "xor.name.txt");
             jTextField4.setText(nameFile.getAbsolutePath());
-        } catch (Exception ex) {}
-        try {
-            labelFile = new File("dataset\\arrhythmia.v2.label.txt");
+            } catch (Exception ex) {}
+            try {
+            labelFile = new File("dataset", "xor.label.txt");
             jTextField3.setText(labelFile.getAbsolutePath());
-        } catch (Exception ex) {}
-        try {
-            dataPredictionFile = new File("dataset\\arrhythmia.dataPr.txt");
-        } catch (Exception ex) {}
+            } catch (Exception ex) {}
+            try {
+            dataPredictionFile = new File("dataset", "xor.dataPr.txt");
+            } catch (Exception ex) {}
         preprocessingObject = new PreprocessingObject();
         preprocessingObject.setLoaderObject(jButton3, jTextField23);
         preprocessingObject.setSelectorObject(jTextField13, jButton28, jButton4, jTextField25);

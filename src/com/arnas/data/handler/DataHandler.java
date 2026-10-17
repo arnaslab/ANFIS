@@ -29,10 +29,16 @@ public class DataHandler {
     private AttributeEvaluatorData attributeEvaluator;
     private SplitTesterData splitTester;
     
-    public void loadAndPreprocess(File dataFile, File typeFile, File labelFile) throws FileNotFoundException, IOException, Exception {
+    public void loadAndPreprocess(File dataFile, File typeFile, File labelFile)
+            throws FileNotFoundException, IOException, Exception {
+        loadAndPreprocess(dataFile, typeFile, null, labelFile);
+    }
+
+    public void loadAndPreprocess(File dataFile, File typeFile, File nameFile, File labelFile)
+            throws FileNotFoundException, IOException, Exception {
         /* Load Data */
         DataLoader loader = new DataLoader();
-        loader.setUseAd(true);
+        loader.setUseAd(false);
         ArrayList<String[]> dataTemp = loader.loadFileToWord(dataFile, ",");
         String[] targetTemp = loader.splitLastWord(dataTemp);
         double[][] data = loader.convertWordToDouble(dataTemp);
@@ -41,6 +47,9 @@ public class DataHandler {
         metadata.setDataType(loader.loadFileToLine(typeFile)[0].split(","));
         if (metadata.getDataType().length != data[0].length) {
             throw new Exception("count of the data type not match");
+        }
+        if (nameFile != null && nameFile.exists()) {
+            metadata.setAttributeNames(loader.loadFileToLine(nameFile)[0].split(","));
         }
         metadata.setClassLabel(loader.loadFileToLine(labelFile));
         

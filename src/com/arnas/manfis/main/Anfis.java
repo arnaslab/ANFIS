@@ -1,4 +1,4 @@
-﻿package com.arnas.manfis.main;
+package com.arnas.manfis.main;
 
 import com.arnas.manfis.learning.OfflineLearner;
 import com.arnas.manfis.learning.OnlineLearner;

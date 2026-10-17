@@ -1,4 +1,4 @@
-﻿package com.arnas.manfis.network.rule.consequent;
+package com.arnas.manfis.network.rule.consequent;
 
 import com.arnas.manfis.data.AnfisInput;
 import java.util.Random;

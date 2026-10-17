@@ -1,4 +1,4 @@
-﻿package com.arnas.manfis.network.rule.sNorm;
+package com.arnas.manfis.network.rule.sNorm;
 
 /**
  *
