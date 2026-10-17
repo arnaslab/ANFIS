@@ -1,4 +1,4 @@
-﻿package com.arnas.manfis.network;
+package com.arnas.manfis.network;
 
 import com.arnas.manfis.network.rule.Rule;
 import com.arnas.manfis.data.AnfisInput;

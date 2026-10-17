@@ -1,4 +1,4 @@
-﻿package com.arnas.manfis.network.rule.membershipFunction;
+package com.arnas.manfis.network.rule.membershipFunction;
 
 import java.util.Random;
 

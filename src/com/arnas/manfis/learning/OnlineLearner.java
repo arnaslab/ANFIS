@@ -1,4 +1,4 @@
-﻿package com.arnas.manfis.learning;
+package com.arnas.manfis.learning;
 
 import com.arnas.manfis.network.Network;
 import com.arnas.manfis.data.AnfisInput;

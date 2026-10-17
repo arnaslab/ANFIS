@@ -1,4 +1,4 @@
-﻿package com.arnas.manfis.network.rule;
+package com.arnas.manfis.network.rule;
 
 import com.arnas.manfis.network.rule.membershipFunction.BellMF;
 import com.arnas.manfis.network.rule.membershipFunction.GaussianMF;

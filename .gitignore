@@ -1,3 +1,7 @@
+target/
+result/
+log/
+
 *.java.hsp
 *.sonarj
 *.sw*
