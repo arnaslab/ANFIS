@@ -1,21 +1,25 @@
 package com.arnas.manfis.main;
 
 import com.arnas.data.handler.DataHandler;
-import com.arnas.exec.Exec;
-import com.arnas.gui.Main_frame;
+import com.arnas.data.handler.KFoldData;
+import com.arnas.manfis.data.AnfisInput;
 import com.arnas.manfis.data.AnfisModel;
 import com.arnas.manfis.data.AnfisOutput;
 import com.arnas.manfis.network.rule.Rule;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * Headless entry point. Usage:
  *   mvn -q exec:java -Dexec.args="train [options]"
+ *   mvn -q exec:java -Dexec.args="kfold --k 5 [options]"
  *   mvn -q exec:java -Dexec.args="predict --model FILE --prefix xor"
- *   mvn -q exec:java -Dexec.args="gui"
  */
 public class AnfisCli {
 
@@ -25,12 +29,12 @@ public class AnfisCli {
             printUsage();
             return;
         }
-        if ("gui".equals(args[0])) {
-            Main_frame.main(new String[0]);
-            return;
-        }
         if ("predict".equals(args[0])) {
             runPredict(parseOptions(args));
+            return;
+        }
+        if ("kfold".equals(args[0])) {
+            runKFold(parseOptions(args));
             return;
         }
         if (!"train".equals(args[0])) {
@@ -60,25 +64,9 @@ public class AnfisCli {
         DataHandler handler = loadHandler(dataDir, prefix);
         handler.useTrainValTestSplit(trainRatio, valRatio, testRatio);
 
-        Anfis anfis = new Anfis(handler.dataTraining(), handler.dataTesting(),
-                handler.dataHoldout(), handler.metadata(), nRule, mfType, tNorm);
-        anfis.startTraining(learningRate, momentum);
-        anfis.setIndicator(epochs, tolerance, epochs + 1);
-
-        while (true) {
-            double rmse = anfis.trainNextEpoch();
-            AnfisOutput tr = anfis.getTrainingResult();
-            AnfisOutput val = anfis.getValidationResult();
-            if (!Double.isNaN(tr.getRmse())) {
-                System.out.printf(
-                        "epoch %d  rmse_tr=%.6f  acc_tr=%.2f  rmse_val=%.6f  acc_val=%.2f%n",
-                        anfis.getLog().getEpoch(),
-                        tr.getRmse(), tr.getAcc(), val.getRmse(), val.getAcc());
-            }
-            if (Double.isNaN(rmse)) {
-                break;
-            }
-        }
+        Anfis anfis = trainModel(handler.dataTraining(), handler.dataTesting(),
+                handler.dataHoldout(), handler, nRule, mfType, tNorm,
+                learningRate, momentum, epochs, tolerance, true);
 
         AnfisOutput test = anfis.evaluateTestSet();
         double lastRmse = anfis.getTrainingResult().getRmse();
@@ -86,7 +74,7 @@ public class AnfisCli {
             System.err.println("Training did not produce a finite RMSE.");
             System.exit(2);
         }
-        File[] saved = Exec.saveRun(anfis);
+        File[] saved = saveRun(anfis);
         if (modelOut != null) {
             anfis.saveModelToFile(modelOut);
         }
@@ -148,6 +136,102 @@ public class AnfisCli {
         return handler;
     }
 
+    private static void runKFold(Map<String, String> opts) throws Exception {
+        Path dataDir = Path.of(opts.getOrDefault("data-dir", "dataset"));
+        String prefix = opts.getOrDefault("prefix", "xor");
+        int k = Integer.parseInt(opts.getOrDefault("k", "5"));
+        if (k < 2) {
+            throw new IllegalArgumentException("kfold requires --k >= 2, got " + k);
+        }
+        int nRule = Integer.parseInt(opts.getOrDefault("rules", "2"));
+        String mfType = opts.getOrDefault("mf", "BELL_MF");
+        String tNorm = opts.getOrDefault("tnorm", Rule.PRODUCT_NORM);
+        double learningRate = Double.parseDouble(opts.getOrDefault("lr", "0.01"));
+        double momentum = Double.parseDouble(opts.getOrDefault("momentum", "0.1"));
+        int epochs = Integer.parseInt(opts.getOrDefault("epochs", "20"));
+        double tolerance = Double.parseDouble(opts.getOrDefault("tolerance", "0.0"));
+
+        DataHandler handler = loadHandler(dataDir, prefix);
+        handler.useKFold(k);
+        KFoldData folds = handler.foldData();
+        folds.resetK();
+        int foldCount = folds.getK();
+        double sumRmse = 0;
+        double sumAcc = 0;
+        int reported = 0;
+        Anfis last = null;
+        for (int i = 0; i < foldCount; i++) {
+            if (i > 0) {
+                folds.setNextK();
+            }
+            handler.metadata().setMetaData(handler.dataTraining(), handler.dataTesting());
+            AnfisInput[] train = handler.dataTraining();
+            AnfisInput[] holdout = handler.dataTesting();
+            if (train == null || train.length == 0) {
+                System.err.printf("fold %d/%d skipped: empty training set%n", i + 1, foldCount);
+                continue;
+            }
+            if (holdout == null || holdout.length == 0) {
+                System.err.printf("fold %d/%d skipped: empty holdout%n", i + 1, foldCount);
+                continue;
+            }
+            Anfis anfis = trainModel(train, null, holdout, handler, nRule, mfType, tNorm,
+                    learningRate, momentum, epochs, tolerance, false);
+            AnfisOutput test = anfis.evaluateTestSet();
+            if (test == null) {
+                System.err.printf("fold %d/%d skipped: no test metrics%n", i + 1, foldCount);
+                continue;
+            }
+            last = anfis;
+            System.out.printf("fold %d/%d  n_train=%d  n_test=%d  rmse=%.6f  acc=%.2f%n",
+                    i + 1, foldCount, train.length, holdout.length,
+                    test.getRmse(), test.getAcc());
+            sumRmse += test.getRmse();
+            sumAcc += test.getAcc();
+            reported++;
+        }
+        if (last == null || reported == 0) {
+            throw new Exception("kfold produced no trained folds");
+        }
+        File[] saved = saveRun(last);
+        System.out.printf("kfold  k=%d  mean_rmse=%.6f  mean_acc=%.2f%n",
+                reported, sumRmse / reported, sumAcc / reported);
+        System.out.println("model  " + saved[0].getPath() + "  (last fold)");
+        System.out.println("log    " + saved[1].getPath() + "  (last fold)");
+    }
+
+    private static Anfis trainModel(AnfisInput[] train, AnfisInput[] val, AnfisInput[] holdout,
+            DataHandler handler, int nRule, String mfType, String tNorm,
+            double learningRate, double momentum, int epochs, double tolerance,
+            boolean printEpochs) throws Exception {
+        Anfis anfis = new Anfis(train, val, holdout, handler.metadata(), nRule, mfType, tNorm);
+        anfis.startTraining(learningRate, momentum);
+        anfis.setIndicator(epochs, tolerance, epochs + 1);
+        while (true) {
+            double rmse = anfis.trainNextEpoch();
+            if (printEpochs) {
+                AnfisOutput tr = anfis.getTrainingResult();
+                AnfisOutput v = anfis.getValidationResult();
+                if (!Double.isNaN(tr.getRmse())) {
+                    if (val != null && val.length > 0) {
+                        System.out.printf(
+                                "epoch %d  rmse_tr=%.6f  acc_tr=%.2f  rmse_val=%.6f  acc_val=%.2f%n",
+                                anfis.getLog().getEpoch(),
+                                tr.getRmse(), tr.getAcc(), v.getRmse(), v.getAcc());
+                    } else {
+                        System.out.printf(
+                                "epoch %d  rmse_tr=%.6f  acc_tr=%.2f%n",
+                                anfis.getLog().getEpoch(), tr.getRmse(), tr.getAcc());
+                    }
+                }
+            }
+            if (Double.isNaN(rmse)) {
+                break;
+            }
+        }
+        return anfis;
+    }
+
     private static Map<String, String> parseOptions(String[] args) {
         Map<String, String> opts = new LinkedHashMap<>();
         for (int i = 1; i < args.length; i++) {
@@ -173,8 +257,8 @@ public class AnfisCli {
         System.out.println();
         System.out.println("Usage:");
         System.out.println("  mvn -q exec:java -Dexec.args=\"train [options]\"");
+        System.out.println("  mvn -q exec:java -Dexec.args=\"kfold --k 5 [options]\"");
         System.out.println("  mvn -q exec:java -Dexec.args=\"predict --model FILE [options]\"");
-        System.out.println("  mvn -q exec:java -Dexec.args=\"gui\"");
         System.out.println();
         System.out.println("train options:");
         System.out.println("  --data-dir DIR     directory with sample files (default: dataset)");
@@ -191,10 +275,26 @@ public class AnfisCli {
         System.out.println("  --test-ratio C     held-out test parts (default: 1)");
         System.out.println("  --model FILE       write the trained model here");
         System.out.println();
+        System.out.println("kfold options: same as train, plus:");
+        System.out.println("  --k N              number of folds (default: 5)");
+        System.out.println("  Each fold trains on k-1 parts and reports RMSE/accuracy on the held-out");
+        System.out.println("  fold only after training stops. Prints mean RMSE and accuracy.");
+        System.out.println();
         System.out.println("predict options:");
         System.out.println("  --model FILE       trained model (required)");
         System.out.println("  --data-dir DIR     directory with sample files (default: dataset)");
         System.out.println("  --prefix NAME      file prefix (default: xor)");
         System.out.println("  --input FILE       unlabeled rows (default: dataset/<prefix>.dataPr.txt)");
+    }
+
+    static File[] saveRun(Anfis anfis) throws IOException {
+        Files.createDirectories(new File("result").toPath());
+        Files.createDirectories(new File("log").toPath());
+        String stamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
+        File modelFile = new File("result", "anfis-" + stamp + ".model.txt");
+        File logFile = new File("log", "anfis-" + stamp + ".log.txt");
+        anfis.saveModelToFile(modelFile);
+        anfis.saveLogToFile(logFile, String.valueOf(anfis.getLog().getDuration()));
+        return new File[] {modelFile, logFile};
     }
 }

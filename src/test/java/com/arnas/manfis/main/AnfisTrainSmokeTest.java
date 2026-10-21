@@ -1,8 +1,7 @@
 package com.arnas.manfis.main;
 
 import com.arnas.data.handler.DataHandler;
-import com.arnas.exec.Exec;
-import com.arnas.exec.KFoldExec;
+import com.arnas.data.handler.KFoldData;
 import com.arnas.manfis.data.AnfisOutput;
 import com.arnas.manfis.network.rule.Rule;
 import java.io.File;
@@ -51,22 +50,50 @@ class AnfisTrainSmokeTest {
     }
 
     @Test
-    void kFoldModelsAreVisibleOnParentExec() throws Exception {
+    void kFoldUnevenFoldsTrainWithoutCrashing() throws Exception {
         Path dataDir = Path.of("dataset");
-        Exec exec = new Exec(null, null);
-        exec.loadAndPreprocess(
+        DataHandler handler = new DataHandler();
+        handler.loadAndPreprocess(
                 dataDir.resolve("xor.dataTr.txt").toFile(),
                 dataDir.resolve("xor.type.txt").toFile(),
                 dataDir.resolve("xor.name.txt").toFile(),
                 dataDir.resolve("xor.label.txt").toFile());
-        KFoldExec kfold = new KFoldExec(exec);
-        kfold.splitDataTraining(5);
-        kfold.startTraining("BELL_MF", 2, 0.01, 0.1, 1, 0.0);
+        handler.useKFold(5);
+        KFoldData folds = handler.foldData();
+        folds.resetK();
+        Anfis last = null;
+        int foldCount = folds.getK();
+        for (int i = 0; i < foldCount; i++) {
+            if (i > 0) {
+                folds.setNextK();
+            }
+            handler.metadata().setMetaData(handler.dataTraining(), handler.dataTesting());
+            last = new Anfis(handler.dataTraining(), handler.dataTesting(),
+                    handler.metadata(), 2, "BELL_MF");
+            last.startTraining(0.01, 0.1);
+            last.setIndicator(1, 0.0, 2);
+            last.trainNextEpoch();
+        }
+        assertNotNull(last);
+        assertNotNull(last.getTestingResult());
+        assertFalse(Double.isNaN(last.getTestingResult().getRmse()));
+        assertNotNull(last.getMembershipFunctionList());
+    }
 
-        assertNotNull(exec.getTestingResult());
-        assertFalse(Double.isNaN(exec.getTestingResult().getRmse()));
-        exec.setAnfis(0);
-        assertNotNull(exec.getMembershipFunctionList());
+    @Test
+    void kFoldCliPrintsMeanMetrics() throws Exception {
+        AnfisCli.main(new String[] {
+            "kfold", "--prefix", "xor", "--k", "5", "--epochs", "1", "--rules", "2"
+        });
+    }
+
+    @Test
+    void kFoldCliRejectsKLessThanTwo() {
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+            AnfisCli.main(new String[] {
+                "kfold", "--prefix", "xor", "--k", "1", "--epochs", "1"
+            }));
+        assertTrue(ex.getMessage().contains("--k >= 2"));
     }
 
     @Test
