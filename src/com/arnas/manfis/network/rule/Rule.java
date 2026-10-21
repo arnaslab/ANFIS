@@ -8,6 +8,8 @@ import com.arnas.manfis.network.rule.membershipFunction.MembershipFunction;
 import com.arnas.manfis.network.rule.sNorm.AlgebricSum;
 import com.arnas.manfis.network.rule.tNorm.AlgebricProduct;
 import com.arnas.manfis.network.rule.tNorm.BasicTNorm;
+import com.arnas.manfis.network.rule.tNorm.EinsteinProduct;
+import com.arnas.manfis.network.rule.tNorm.HamacherProduct;
 import com.arnas.manfis.network.rule.tNorm.TNorm;
 
 /**
@@ -26,6 +28,10 @@ public class Rule {
     public static final String MIN_NORM = "MIN";
     /** Layer-2 sum (not a T-norm; kept as an explicit option) */
     public static final String SUM_NORM = "SUM";
+    /** Layer-2 Einstein product */
+    public static final String EINSTEIN_NORM = "EINSTEIN";
+    /** Layer-2 Hamacher product */
+    public static final String HAMACHER_NORM = "HAMACHER";
     
     private final int nInput;
     private final int nOutput;
@@ -69,10 +75,21 @@ public class Rule {
 
         useSum = SUM_NORM.equals(normType);
         sumNorm = new AlgebricSum(nInput);
-        if (MIN_NORM.equals(normType)) {
-            tNorm = new BasicTNorm(nInput);
-        } else {
-            tNorm = new AlgebricProduct(nInput);
+        switch (normType) {
+            case MIN_NORM:
+                tNorm = new BasicTNorm(nInput);
+                break;
+            case EINSTEIN_NORM:
+                tNorm = new EinsteinProduct(nInput);
+                break;
+            case HAMACHER_NORM:
+                tNorm = new HamacherProduct(nInput);
+                break;
+            case SUM_NORM:
+            case PRODUCT_NORM:
+            default:
+                tNorm = new AlgebricProduct(nInput);
+                break;
         }
         
         Cons = new Consequent[nOutput];

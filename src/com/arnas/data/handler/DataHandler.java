@@ -21,6 +21,7 @@ public class DataHandler {
     private DataPreProcessor preprocessor;
     private AnfisInput[] dataTraining;
     private AnfisInput[] dataTesting;
+    private AnfisInput[] dataHoldout;
     private AnfisInput[] dataPrediction;
     private MetaData metadata;
     
@@ -70,11 +71,7 @@ public class DataHandler {
     
     public void selectAttributes(int n) throws Exception {
         selector = new AttributeSelector();
-        //dataTraining = selector.selectAttributes(dataTraining, metadata);
         dataTraining = selector.selectAttributes(n, dataTraining, metadata);
-        //int[] att = new int[] {81, 83, 4, 93, 213, 203, 23, 85, 46, 12, 209, 61, 153, 69, 179, 219, 172, 229, 80, 50, 144, 35, 7, 126, 149, 174, 186, 208, 116, 48, 1, 134, 178, 95, 102, 8, 161, 59, 158, 147, 190, 67, 104, 249, 105, 201, 14, 220, 5, 90, 227, 129, 94, 110, 167, 192, 241, 236, 136, 237, 98, 103, 79, 210, 58, 199, 171, 231, 214, 20, 26, 183, 207, 97, 38, 218, 222, 223, 216, 106, 245, 151, 196, 111, 72, 253, 107, 228, 197, 62, 163, 159, 115, 256, 240, 177, 188, 235, 128, 11};
-        //dataTraining = selector.selectAttributes(att,dataTraining, metadata);
-        //metadata.setMetaData(dataTraining);
     }
     
     public void reClassCoding(int[][] newClassCode) {
@@ -86,10 +83,23 @@ public class DataHandler {
         DataSplitter splitter = new DataSplitter();
         splitType = "Fix";
         splitter.fixSplitter(dataTraining, metadata, tr, ts);
-        //splitter.definedSplitter(dataTraining, new int[] {0, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0});
-        //splitter.randomSplitter(dataTraining, metadata, tr, ts);
         dataTraining = splitter.getNewDataTraining();
         dataTesting = splitter.getNewDataValidation();
+        dataHoldout = null;
+        metadata.setMetaData(dataTraining, dataTesting);
+    }
+
+    /**
+     * Split into train / validation / test. Validation is used for early stopping;
+     * test is held out until training finishes.
+     */
+    public void useTrainValTestSplit(int trainRatio, int valRatio, int testRatio) {
+        DataSplitter splitter = new DataSplitter();
+        splitType = "Fix";
+        splitter.threeWaySplitter(dataTraining, metadata, trainRatio, valRatio, testRatio);
+        dataTraining = splitter.getNewDataTraining();
+        dataTesting = splitter.getNewDataValidation();
+        dataHoldout = splitter.getNewDataHoldout();
         metadata.setMetaData(dataTraining, dataTesting);
     }
     
@@ -145,6 +155,10 @@ public class DataHandler {
         }
     }
     
+    public AnfisInput[] dataHoldout() {
+        return dataHoldout;
+    }
+
     public AnfisInput[] dataTesting() {
         switch (splitType) {
             case "KFold" :

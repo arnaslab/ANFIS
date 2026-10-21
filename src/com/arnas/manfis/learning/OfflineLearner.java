@@ -2,7 +2,6 @@ package com.arnas.manfis.learning;
 
 import com.arnas.manfis.data.AnfisInput;
 import com.arnas.manfis.network.Network;
-import org.apache.commons.math3.linear.SingularMatrixException;
 
 /**
  *
@@ -19,15 +18,13 @@ public class OfflineLearner {
         this.nOutput = nOutput;
     }
     
-    public void learn(Network net, AnfisInput[] data) throws SingularMatrixException {
+    public void learn(Network net, AnfisInput[] data) {
         double[][] C = getC(net, data);
         //printMatrix(C);
         for (int i = 0; i < nOutput; i++) {
             double[] y = getY(data, i);
             LSERecursive lse = new LSERecursive(C, y);
-            System.out.print("LSE recursive");
             lse.compute(nRule*(nInput+1));
-            System.out.println("");
             double[][] p = lse.getTheta(nRule);
             for (int j = 0; j < nRule; j++) {
                 net.rule(j).Cons(i).setParameters(p[j]);

@@ -17,27 +17,17 @@ public class OnlineLearner {
         this.m = m;
     }
     
-    public void learn1(Network net, AnfisInput[] dataTraining, AnfisOutput trainingResult) {
-        double SSE = 0;
-        int correct = 0;
-        //for (AnfisInput data1 : dataTraining) {
-            //System.out.println(data1.index());
-            net.execute(dataTraining[420]);
-            trainingResult.setResult(dataTraining[420].index(), net.getResult());
-            trainingResult.setCorrectnes(dataTraining[420].index(), dataTraining[420].YBin());
-            if (trainingResult.correctness(dataTraining[420].index())) {
-                correct++;
-            }
-            double error = net.calculateError(dataTraining[420]);
-            net.correctError(dataTraining[420], η, m);
-            SSE = SSE + error;
-        //}
-        double rmse = Math.sqrt( SSE / dataTraining.length );
-        double cr = (double)(correct * 100) / dataTraining.length;
-        trainingResult.setEvaluation(rmse, cr);
-    }
-    
     public void learn(Network net, AnfisInput[] dataTraining, AnfisOutput trainingResult) {
+        learn(net, dataTraining, trainingResult, true);
+    }
+
+    /** Premise-only gradient step used by hybrid learning. */
+    public void learnPremises(Network net, AnfisInput[] dataTraining, AnfisOutput trainingResult) {
+        learn(net, dataTraining, trainingResult, false);
+    }
+
+    private void learn(Network net, AnfisInput[] dataTraining, AnfisOutput trainingResult,
+            boolean updateConsequent) {
         double SSE = 0;
         int correct = 0;
         for (AnfisInput data1 : dataTraining) {
@@ -48,9 +38,12 @@ public class OnlineLearner {
                 correct++;
             }
             double error = net.calculateError(data1);
-            net.correctError(data1, η, m);
+            if (updateConsequent) {
+                net.correctError(data1, η, m);
+            } else {
+                net.correctPremiseError(data1, η, m);
+            }
             SSE = SSE + error;
-            //System.out.println(data1.index()+"\t"+error);
         }
         double rmse = Math.sqrt( SSE / dataTraining.length );
         double cr = (double)(correct * 100) / dataTraining.length;
@@ -61,10 +54,8 @@ public class OnlineLearner {
         double SSE = 0;
         int correct = 0;
         for (AnfisInput data1 : dataTesting) {
-            //System.out.println(data1.index());
             net.execute(data1);
             testingResult.setResult(data1.index(), net.getResult());
-            //System.out.println("val");
             testingResult.setCorrectnes(data1.index(), data1.YBin());
             if (testingResult.correctness(data1.index())) {
                 correct++;
