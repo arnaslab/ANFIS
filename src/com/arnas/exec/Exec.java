@@ -293,11 +293,23 @@ public class Exec {
 
     private static int peekRuleCount(File modelFile) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FileReader(modelFile))) {
-            String[] part = reader.readLine().split(" ");
-            if (!"A".equals(part[0])) {
-                throw new Exception("wrong file");
+            String line = reader.readLine();
+            String[] part = line.split(" ");
+            if ("ANFIS".equals(part[0])) {
+                while ((line = reader.readLine()) != null) {
+                    part = line.split(" ");
+                    if ("n_rule".equals(part[0])) {
+                        return Integer.parseInt(part[1]);
+                    }
+                    if ("A".equals(part[0])) {
+                        return Integer.parseInt(part[1]);
+                    }
+                }
             }
-            return Integer.parseInt(part[1]);
+            if ("A".equals(part[0])) {
+                return Integer.parseInt(part[1]);
+            }
+            throw new Exception("wrong file");
         }
     }
 }

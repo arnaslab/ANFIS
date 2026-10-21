@@ -31,13 +31,17 @@ public class Network {
     private boolean isErrorCalculated;
     
     public Network(String outputType, String mfType, int nInput, int nRule, int nOutput) {
+        this(outputType, mfType, Rule.PRODUCT_NORM, nInput, nRule, nOutput);
+    }
+
+    public Network(String outputType, String mfType, String tNorm, int nInput, int nRule, int nOutput) {
         this.outputType = outputType;
         this.nInput = nInput;
         this.nRule = nRule;
         this.nOutput = nOutput;
         rule = new Rule[nRule];
         for (int i = 0; i < nRule; i++) {
-            rule[i] = new Rule(nInput, nOutput, mfType);
+            rule[i] = new Rule(nInput, nOutput, mfType, tNorm);
             ///*
             double[] A = new double[nInput];
             double[] B = new double[nInput];
@@ -186,6 +190,36 @@ public class Network {
         //memperbaiki error parameter premis
         for (int i = 0; i < nRule; i++) {
             rule[i].correctPremisError(E1[i], data, η, m);
+        }
+    }
+
+    /** Gradient step for premise parameters only (hybrid ANFIS). */
+    public void correctPremiseError(AnfisInput data, double η, double m) {
+        if (!isErrorCalculated) {
+            calculateError(data);
+        }
+        double E3[] = new double[nRule];
+        for (int i = 0; i < nRule; i++) {
+            E3[i] = rule[i].computeE3(error);
+        }
+        sumw = 0;
+        for (int i = 0; i < nRule; i++) {
+            sumw = sumw + rule[i].w();
+        }
+        double E2[] = new double[nRule];
+        for (int i = 0; i < nRule; i++) {
+            double num = 0.0;
+            for (int j = 0; j < nRule; j++) {
+                if (i == j) {
+                    num = num + ((sumw - rule[i].w()) * E3[j]);
+                } else {
+                    num = num + (- rule[i].w() * E3[j]);
+                }
+            }
+            E2[i] = sumw == 0 ? 0 : num / sumw;
+        }
+        for (int i = 0; i < nRule; i++) {
+            rule[i].correctPremisError(rule[i].computeE1(E2[i]), data, η, m);
         }
     }
     

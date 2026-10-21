@@ -9,6 +9,7 @@ import com.arnas.data.handler.MetaData;
 import com.arnas.manfis.data.AnfisLog;
 import com.arnas.manfis.data.AnfisOutput;
 import com.arnas.manfis.learning.Predictor;
+import com.arnas.manfis.network.rule.Rule;
 import com.arnas.manfis.network.rule.membershipFunction.MembershipFunction;
 import java.io.File;
 import java.io.IOException;
@@ -20,42 +21,56 @@ import java.io.IOException;
 public class Anfis {
     
     private AnfisInput[] dataTr;
+    private AnfisInput[] dataVal;
     private AnfisInput[] dataTs;
-    private AnfisInput[] dataPr;
     
     private final MetaData metadata;
     
     private final int nRule;
     private final String mfType;
+    private final String tNorm;
     
     private final Network net;
     private final AnfisModel model;
     private AnfisLog log;
     
     private AnfisOutput resultTr;
+    private AnfisOutput resultVal;
     private AnfisOutput resultTs;
     private AnfisOutput resultPr;
     
     public Anfis(AnfisInput[] dataTraining, AnfisInput[] dataTesting, 
             MetaData metadata, int nRule, String mfType) {
+        this(dataTraining, dataTesting, null, metadata, nRule, mfType, Rule.PRODUCT_NORM);
+    }
+
+    public Anfis(AnfisInput[] dataTraining, AnfisInput[] dataTesting, AnfisInput[] dataHoldout,
+            MetaData metadata, int nRule, String mfType, String tNorm) {
         this.dataTr = dataTraining;
-        this.dataTs = dataTesting;
+        this.dataVal = dataTesting;
+        this.dataTs = dataHoldout;
         this.metadata = metadata;
         this.nRule = nRule;
         this.mfType = mfType;
+        this.tNorm = tNorm == null ? Rule.PRODUCT_NORM : tNorm;
         model = new AnfisModel();
-        log = new AnfisLog("BELL_MF", 2, 0.001, 0.01);
-        //metadata.setMetaData(dataTraining, dataTesting);
-        net = new Network(metadata.getOutputType(), mfType, dataTraining[0].nInput(), nRule, metadata.nOutput());
-        resultTr = new AnfisOutput(metadata.getOutputType(), metadata.nDataTraining());
-        resultTs = new AnfisOutput(metadata.getOutputType(), metadata.nDataTesting());
-        //printData(dataTraining);//for testing purpose
-        //printData(dataValidation);//for testing purpose
+        model.setMeta(this.mfType, this.tNorm, metadata.getOutputType());
+        log = new AnfisLog(mfType, nRule, 0.001, 0.01);
+        net = new Network(metadata.getOutputType(), mfType, this.tNorm,
+                dataTraining[0].nInput(), nRule, metadata.nOutput());
+        resultTr = new AnfisOutput(metadata.getOutputType(), dataTraining.length);
+        resultVal = new AnfisOutput(metadata.getOutputType(),
+                dataTesting == null ? 0 : dataTesting.length);
+        resultTs = dataHoldout == null ? null
+                : new AnfisOutput(metadata.getOutputType(), dataHoldout.length);
     }
     
     public void setNewData(AnfisInput[] dataTraining, AnfisInput[] dataTesting) {
         dataTr = dataTraining;
-        dataTs = dataTesting;
+        dataVal = dataTesting;
+        resultTr = new AnfisOutput(metadata.getOutputType(), dataTraining.length);
+        resultVal = new AnfisOutput(metadata.getOutputType(),
+                dataTesting == null ? 0 : dataTesting.length);
     }
     
     private OnlineLearner online;
@@ -71,10 +86,11 @@ public class Anfis {
     public void startTraining(double η, double m) {
         e = 0;
         tempTime = 0;
+        stagnant = 0;
+        rmseTemp = Double.NaN;
         online = new OnlineLearner(η, m);
-        offline = new OfflineLearner(metadata.nDataTraining(), nRule, metadata.nAttributes(), metadata.nOutput());
+        offline = new OfflineLearner(dataTr.length, nRule, dataTr[0].nInput(), metadata.nOutput());
         log = new AnfisLog(mfType, nRule, η, m);
-        //useOfflineLearning();
     }
     
     public void setIndicator(int maxEpoch, double errorTolerance, int stagnantIndicator) {
@@ -89,16 +105,19 @@ public class Anfis {
     
     public double trainNextEpoch() {
         startTime = System.nanoTime();
-        online.learn(net, dataTr, resultTr);
-        online.validate(net, dataTs, resultTs);
+        useOfflineLearning();
+        online.learnPremises(net, dataTr, resultTr);
+        boolean hasVal = dataVal != null && dataVal.length > 0;
+        if (hasVal) {
+            online.validate(net, dataVal, resultVal);
+        }
         tempTime = ((int)(System.nanoTime()-startTime)/1000000)+tempTime;
-        //System.out.println(resultTr.getRmse()+"\t"+resultTr.getAcc()+"\t"+resultTs.getRmse()+"\t"+resultTs.getAcc());
-        log.updateLog(e, tempTime, resultTr.getRmse(), resultTr.getAcc(), resultTs.getRmse(), resultTs.getAcc());
+        double valRmse = hasVal ? resultVal.getRmse() : resultTr.getRmse();
+        double valAcc = hasVal ? resultVal.getAcc() : resultTr.getAcc();
+        log.updateLog(e, tempTime, resultTr.getRmse(), resultTr.getAcc(), valRmse, valAcc);
         model.saveModel(net.getA(), net.getB(), net.getP());
-        //System.out.println(e+"\t"+printDouble(resultTr.getRmse())+"\t"+printDouble(resultTs.getRmse())
-        //        +"\t"+printDouble(resultTr.getAcc())+"\t"+printDouble(resultTs.getAcc()));
         e++;
-        if (isContinueTraining(resultTr.getRmse())) {
+        if (isContinueTraining(valRmse)) {
             return resultTr.getRmse();
         } else {
             return Double.NaN;
@@ -106,17 +125,9 @@ public class Anfis {
     }
     
     public void trainRemainingEpoch() {
-        do {
-            startTime = System.nanoTime();
-            online.learn(net, dataTr, resultTr);
-            online.validate(net, dataTs, resultTs);
-            tempTime = ((int)(System.nanoTime()-startTime)/1000000)+tempTime;
-            log.updateLog(e, tempTime, resultTr.getRmse(), resultTr.getAcc(), resultTs.getRmse(), resultTs.getAcc());
-            model.saveModel(net.getA(), net.getB(), net.getP());
-            //System.out.println(e+"\t"+printDouble(resultTr.getRmse())+"\t"+printDouble(resultTs.getRmse())
-            //    +"\t"+printDouble(resultTr.getCr())+"\t"+printDouble(resultTs.getCr()));
-            e++;
-        } while (isContinueTraining(resultTr.getRmse()));
+        while (!Double.isNaN(trainNextEpoch())) {
+            // stop condition is inside trainNextEpoch
+        }
     }
     
     private boolean isContinueTraining(double currentRmse) {
@@ -141,15 +152,50 @@ public class Anfis {
     }
     
     public AnfisOutput getTestingResult() {
+        return resultVal;
+    }
+
+    public AnfisOutput getValidationResult() {
+        return resultVal;
+    }
+
+    public AnfisOutput evaluateTestSet() {
+        if (dataTs == null || dataTs.length == 0) {
+            return null;
+        }
+        if (resultTs == null) {
+            resultTs = new AnfisOutput(metadata.getOutputType(), dataTs.length);
+        }
+        if (online == null) {
+            online = new OnlineLearner(0, 0);
+        }
+        online.validate(net, dataTs, resultTs);
+        return resultTs;
+    }
+
+    public AnfisOutput getTestResult() {
         return resultTs;
     }
     
     public void saveModelToFile(File file) throws IOException {
+        model.setMeta(mfType, tNorm, metadata.getOutputType());
         model.saveToFile(file);
     }
     
     public void loadModelFromFile(File file) throws Exception {
         model.loadFromFile(file);
+        if (model.getNRule() != 0 && model.getNRule() != nRule) {
+            throw new Exception("model n_rule " + model.getNRule() + " != " + nRule);
+        }
+        if (model.getNInput() != 0 && model.getNInput() != dataTr[0].nInput()) {
+            throw new Exception("model n_input " + model.getNInput() + " != " + dataTr[0].nInput());
+        }
+        if (model.getNOutput() != 0 && model.getNOutput() != metadata.nOutput()) {
+            throw new Exception("model n_output " + model.getNOutput() + " != " + metadata.nOutput());
+        }
+        rejectMetaMismatch("mf_type", model.getMfType(), mfType);
+        rejectMetaMismatch("t_norm", model.getTNorm(), tNorm);
+        rejectMetaMismatch("output_type", model.getOutputType(), metadata.getOutputType());
         net.setParameters(model.getA(), model.getB(), model.getP());
     }
     
@@ -180,12 +226,21 @@ public class Anfis {
         return net.getMembershipFunctionList();
     }
     
-    private String printDouble(double d) {
-        return Double.toString(d).replace('.', ',');
-    }
-    
     public double[][][] getConsequentParameter() {
         return net.getP();
+    }
+
+    public String getTNorm() {
+        return tNorm;
+    }
+
+    private static void rejectMetaMismatch(String field, String actual, String expected) throws Exception {
+        if (actual == null || "-".equals(actual) || actual.isEmpty()) {
+            return;
+        }
+        if (!actual.equals(expected)) {
+            throw new Exception("model " + field + " " + actual + " != " + expected);
+        }
     }
     
 }

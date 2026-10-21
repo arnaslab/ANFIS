@@ -13,6 +13,7 @@ public class DataSplitter {
     
     AnfisInput[] newDataTraining;
     AnfisInput[] newDataValidation;
+    AnfisInput[] newDataHoldout;
     AnfisInput[][] foldData;
     
     public void fixSplitter(AnfisInput[] dataTraining, MetaData metadata, int ratioTr, int ratioVal) {
@@ -42,6 +43,32 @@ public class DataSplitter {
         
         newDataTraining = makeNewAnfisData(dataTraining, iDataTraining);
         newDataValidation = makeNewAnfisData(dataTraining, iDataValidation);    
+    }
+
+    public void threeWaySplitter(AnfisInput[] data, MetaData metadata,
+            int ratioTr, int ratioVal, int ratioTs) {
+        ArrayList<Integer> iTrain = new ArrayList<>();
+        ArrayList<Integer> iVal = new ArrayList<>();
+        ArrayList<Integer> iTest = new ArrayList<>();
+        int ratioTotal = ratioTr + ratioVal + ratioTs;
+        for (int c = 0; c < metadata.nClassCode(); c++) {
+            int k = 0;
+            for (int j = 0; j < data.length; j++) {
+                if (data[j].YNum()[0] == c) {
+                    if (k < ratioTr) {
+                        iTrain.add(j);
+                    } else if (k < ratioTr + ratioVal) {
+                        iVal.add(j);
+                    } else {
+                        iTest.add(j);
+                    }
+                    k = (k == ratioTotal - 1) ? 0 : k + 1;
+                }
+            }
+        }
+        newDataTraining = makeNewAnfisData(data, iTrain);
+        newDataValidation = makeNewAnfisData(data, iVal);
+        newDataHoldout = makeNewAnfisData(data, iTest);
     }
     
     public void randomSplitter(AnfisInput[] dataTraining, MetaData metadata, int ratioTr, int ratioVal) {
@@ -147,6 +174,10 @@ public class DataSplitter {
 
     public AnfisInput[] getNewDataValidation() {
         return newDataValidation;
+    }
+
+    public AnfisInput[] getNewDataHoldout() {
+        return newDataHoldout;
     }
     
     public AnfisInput[][] getFoldData() {
